@@ -11,6 +11,12 @@ export const FRONTEND_STEPS = [
     { number: 3, title: 'Generate Code' },
 ];
 
+export const ADD_BACKEND_STEPS = [
+    { number: 1, title: 'Upload Project' },
+    { number: 2, title: 'Configure Backend' },
+    { number: 3, title: 'Generate Code' },
+];
+
 export const FRAMEWORKS = [
     { id: 'nodejs-express-mongoose', name: 'Node.js + Express + Mongoose' },
     { id: 'python-flask-sqlalchemy', name: 'Python + Flask + SQLAlchemy' },

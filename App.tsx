@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { ProjectDetails, DataModel, ApiEndpoint, GeneratedFile } from './types';
-import { FRAMEWORKS, FRONTEND_FRAMEWORKS, STEPS, FRONTEND_STEPS } from './constants';
+import { FRAMEWORKS, FRONTEND_FRAMEWORKS, STEPS, FRONTEND_STEPS, ADD_BACKEND_STEPS } from './constants';
 import StepIndicator from './components/StepIndicator';
 import ProjectSetupStep from './components/ProjectSetupStep';
 import DataModelsStep from './components/DataModelsStep';
@@ -8,10 +8,11 @@ import EndpointsStep from './components/EndpointsStep';
 import GenerationStep from './components/GenerationStep';
 import AppTypeSelection from './components/AppTypeSelection';
 import UIDescriptionStep from './components/UIDescriptionStep';
+import UploadStep from './components/UploadStep';
 import { generateBackendCode, generateFrontendCode, generateBackendForFrontend } from './services/geminiService';
 
 const App: React.FC = () => {
-    const [appType, setAppType] = useState<'backend' | 'frontend' | null>(null);
+    const [appType, setAppType] = useState<'backend' | 'frontend' | 'add-backend' | null>(null);
     const [step, setStep] = useState(1);
 
     // Shared Generation State
@@ -47,6 +48,9 @@ const App: React.FC = () => {
     });
     const [uiDescription, setUiDescription] = useState<string>('A simple todo list app. It should have an input field, an "Add" button, and a list of todos. Each todo item should have a checkbox to mark it as complete and a delete button.');
 
+    // Add Backend to Existing App State
+    const [uploadedFiles, setUploadedFiles] = useState<GeneratedFile[] | null>(null);
+
     const handleNext = () => setStep(prev => prev + 1);
     const handleBack = () => setStep(prev => Math.max(prev - 1, 1));
     
@@ -54,6 +58,7 @@ const App: React.FC = () => {
         setStep(1);
         setGeneratedCode(null);
         setFrontendCodeCache(null);
+        setUploadedFiles(null);
         setIsLoading(false);
         setError(null);
         // We don't reset project details to keep user input if they just switch types
@@ -64,7 +69,7 @@ const App: React.FC = () => {
         resetState();
     }
 
-    const handleSelectAppType = (type: 'backend' | 'frontend') => {
+    const handleSelectAppType = (type: 'backend' | 'frontend' | 'add-backend') => {
         setAppType(type);
         resetState();
     };
@@ -124,10 +129,38 @@ const App: React.FC = () => {
             setIsLoading(false);
         }
     }, [frontendProjectDetails, uiDescription, frontendCodeCache]);
+    
+    const handleUploadComplete = useCallback((files: GeneratedFile[]) => {
+        setUploadedFiles(files);
+        setBackendProjectDetails(prev => ({...prev, name: 'my-uploaded-app-api'}));
+        handleNext();
+    }, []);
+
+    const handleGenerateBackendForUpload = useCallback(async () => {
+        if (!uploadedFiles) {
+            setError("Uploaded files are not available to generate a backend.");
+            return;
+        }
+        handleNext();
+        setIsLoading(true);
+        setError(null);
+        setGeneratedCode(null);
+
+        try {
+            const code = await generateBackendForFrontend(backendProjectDetails, "UI description to be inferred from the provided code.", uploadedFiles);
+            setGeneratedCode(code);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [backendProjectDetails, uploadedFiles]);
 
 
     const renderStep = () => {
-        const projectDetails = appType === 'backend' ? backendProjectDetails : frontendProjectDetails;
+        // For 'add-backend' flow, we use backendProjectDetails. For others, it depends on appType.
+        const projectDetails = appType === 'frontend' ? frontendProjectDetails : backendProjectDetails;
+        
         const finalStepProps = {
             isLoading: isLoading,
             error: error,
@@ -166,6 +199,24 @@ const App: React.FC = () => {
                     return <div>Unknown Step</div>;
             }
         }
+        if (appType === 'add-backend') {
+             switch (step) {
+                case 1:
+                    return <UploadStep onUploadComplete={handleUploadComplete} />;
+                case 2:
+                    return <ProjectSetupStep 
+                        details={backendProjectDetails} 
+                        setDetails={setBackendProjectDetails} 
+                        onNext={handleGenerateBackendForUpload} 
+                        frameworks={FRAMEWORKS} 
+                        nextButtonText="Generate Backend"
+                    />;
+                case 3:
+                    return <GenerationStep {...finalStepProps} />;
+                default:
+                    return <div>Unknown Step</div>;
+            }
+        }
         return null;
     };
     
@@ -173,9 +224,17 @@ const App: React.FC = () => {
         return <AppTypeSelection onSelect={handleSelectAppType} />;
     }
     
-    const currentSteps = appType === 'backend' ? STEPS : FRONTEND_STEPS;
-    const title = appType === 'backend' ? 'Backend App Creator' : 'Frontend App Creator';
-    const subtitle = appType === 'backend' ? 'Visually build your API, and let Gemini do the coding.' : 'Describe your UI, and let Gemini do the coding.';
+    const currentSteps = appType === 'backend' ? STEPS 
+        : appType === 'frontend' ? FRONTEND_STEPS 
+        : ADD_BACKEND_STEPS;
+        
+    const title = appType === 'backend' ? 'Backend App Creator' 
+        : appType === 'frontend' ? 'Frontend App Creator'
+        : 'Add Backend to Project';
+        
+    const subtitle = appType === 'backend' ? 'Visually build your API, and let Gemini do the coding.' 
+        : appType === 'frontend' ? 'Describe your UI, and let Gemini do the coding.'
+        : 'Upload your frontend project to generate a matching backend.';
 
     return (
         <div className="min-h-screen bg-background font-sans">
