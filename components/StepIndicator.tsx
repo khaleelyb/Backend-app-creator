@@ -1,18 +1,21 @@
-
 import React from 'react';
-import { STEPS } from '../constants';
+
+interface Step {
+    number: number;
+    title: string;
+}
 
 interface StepIndicatorProps {
     currentStep: number;
-    totalSteps: number;
+    steps: Step[];
 }
 
-const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep }) => {
+const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, steps }) => {
     return (
         <nav aria-label="Progress">
             <ol role="list" className="flex items-center">
-                {STEPS.map((step, stepIdx) => (
-                    <li key={step.title} className={`relative ${stepIdx !== STEPS.length - 1 ? 'pr-8 sm:pr-20' : ''}`}>
+                {steps.map((step, stepIdx) => (
+                    <li key={step.title} className={`relative ${stepIdx !== steps.length - 1 ? 'pr-8 sm:pr-20' : ''}`}>
                         {step.number < currentStep ? (
                             <>
                                 <div className="absolute inset-0 flex items-center" aria-hidden="true">

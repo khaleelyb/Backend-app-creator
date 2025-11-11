@@ -1,16 +1,27 @@
 import React, { useState, useCallback } from 'react';
 import { ProjectDetails, DataModel, ApiEndpoint, GeneratedFile } from './types';
-import { FRAMEWORKS, STEPS } from './constants';
+import { FRAMEWORKS, FRONTEND_FRAMEWORKS, STEPS, FRONTEND_STEPS } from './constants';
 import StepIndicator from './components/StepIndicator';
 import ProjectSetupStep from './components/ProjectSetupStep';
 import DataModelsStep from './components/DataModelsStep';
 import EndpointsStep from './components/EndpointsStep';
 import GenerationStep from './components/GenerationStep';
-import { generateBackendCode } from './services/geminiService';
+import AppTypeSelection from './components/AppTypeSelection';
+import UIDescriptionStep from './components/UIDescriptionStep';
+import { generateBackendCode, generateFrontendCode, generateBackendForFrontend } from './services/geminiService';
 
 const App: React.FC = () => {
+    const [appType, setAppType] = useState<'backend' | 'frontend' | null>(null);
     const [step, setStep] = useState(1);
-    const [projectDetails, setProjectDetails] = useState<ProjectDetails>({
+
+    // Shared Generation State
+    const [generatedCode, setGeneratedCode] = useState<GeneratedFile[] | null>(null);
+    const [frontendCodeCache, setFrontendCodeCache] = useState<GeneratedFile[] | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    
+    // Backend State
+    const [backendProjectDetails, setBackendProjectDetails] = useState<ProjectDetails>({
         name: 'my-awesome-api',
         description: 'A brief description of my new backend API.',
         framework: FRAMEWORKS[0].id,
@@ -27,55 +38,162 @@ const App: React.FC = () => {
         ]},
     ]);
     const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
-    const [generatedCode, setGeneratedCode] = useState<GeneratedFile[] | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
-    const handleNext = () => setStep(prev => Math.min(prev + 1, STEPS.length));
+    // Frontend State
+    const [frontendProjectDetails, setFrontendProjectDetails] = useState<ProjectDetails>({
+        name: 'my-awesome-app',
+        description: 'A brief description of my new frontend app.',
+        framework: FRONTEND_FRAMEWORKS[0].id,
+    });
+    const [uiDescription, setUiDescription] = useState<string>('A simple todo list app. It should have an input field, an "Add" button, and a list of todos. Each todo item should have a checkbox to mark it as complete and a delete button.');
+
+    const handleNext = () => setStep(prev => prev + 1);
     const handleBack = () => setStep(prev => Math.max(prev - 1, 1));
     
-    const handleGenerate = useCallback(async () => {
+    const resetState = () => {
+        setStep(1);
+        setGeneratedCode(null);
+        setFrontendCodeCache(null);
+        setIsLoading(false);
+        setError(null);
+        // We don't reset project details to keep user input if they just switch types
+    };
+    
+    const handleRestart = () => {
+        setAppType(null);
+        resetState();
+    }
+
+    const handleSelectAppType = (type: 'backend' | 'frontend') => {
+        setAppType(type);
+        resetState();
+    };
+
+    const handleGenerateBackend = useCallback(async () => {
       handleNext();
       setIsLoading(true);
       setError(null);
       setGeneratedCode(null);
       try {
-        const code = await generateBackendCode(projectDetails, models, endpoints);
+        const code = await generateBackendCode(backendProjectDetails, models, endpoints);
         setGeneratedCode(code);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error occurred.');
       } finally {
         setIsLoading(false);
       }
-    }, [projectDetails, models, endpoints]);
+    }, [backendProjectDetails, models, endpoints]);
+
+    const handleGenerateFrontend = useCallback(async () => {
+        handleNext();
+        setIsLoading(true);
+        setError(null);
+        setGeneratedCode(null);
+        setFrontendCodeCache(null);
+        try {
+            const code = await generateFrontendCode(frontendProjectDetails, uiDescription);
+            setGeneratedCode(code);
+            setFrontendCodeCache(code);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+        } finally {
+            setIsLoading(false);
+        }
+      }, [frontendProjectDetails, uiDescription]);
+    
+    const handleGenerateBackendForFrontend = useCallback(async (backendFramework: string) => {
+        if (!frontendCodeCache) {
+            setError("Frontend code is not available to generate a backend.");
+            return;
+        }
+        setIsLoading(true);
+        setError(null);
+        setGeneratedCode(null);
+        setAppType('backend'); // Switch the context to backend
+        setStep(STEPS.length); // Jump to the final step for backend
+
+        try {
+            const backendDetails = { ...frontendProjectDetails, framework: backendFramework, name: `${frontendProjectDetails.name}-api`};
+            setBackendProjectDetails(backendDetails);
+            const code = await generateBackendForFrontend(backendDetails, uiDescription, frontendCodeCache);
+            setGeneratedCode(code);
+            setFrontendCodeCache(null); // Clear cache after use
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [frontendProjectDetails, uiDescription, frontendCodeCache]);
+
 
     const renderStep = () => {
-        switch (step) {
-            case 1:
-                return <ProjectSetupStep details={projectDetails} setDetails={setProjectDetails} onNext={handleNext} />;
-            case 2:
-                return <DataModelsStep models={models} setModels={setModels} onBack={handleBack} onNext={handleNext} />;
-            case 3:
-                return <EndpointsStep models={models} endpoints={endpoints} setEndpoints={setEndpoints} onBack={handleBack} onGenerate={handleGenerate} />;
-            case 4:
-                return <GenerationStep isLoading={isLoading} error={error} generatedCode={generatedCode} onBack={handleBack} onRestart={() => setStep(1)} />;
-            default:
-                return <div>Unknown Step</div>;
+        const projectDetails = appType === 'backend' ? backendProjectDetails : frontendProjectDetails;
+        const finalStepProps = {
+            isLoading: isLoading,
+            error: error,
+            generatedCode: generatedCode,
+            onBack: handleBack,
+            onRestart: handleRestart,
+            appType: appType!,
+            projectDetails: projectDetails,
+            onGenerateBackendForFrontend: handleGenerateBackendForFrontend,
+            backendFrameworks: FRAMEWORKS,
+        };
+
+        if (appType === 'backend') {
+            switch (step) {
+                case 1:
+                    return <ProjectSetupStep details={backendProjectDetails} setDetails={setBackendProjectDetails} onNext={handleNext} frameworks={FRAMEWORKS} nextButtonText="Next: Define Data Models"/>;
+                case 2:
+                    return <DataModelsStep models={models} setModels={setModels} onBack={handleBack} onNext={handleNext} />;
+                case 3:
+                    return <EndpointsStep models={models} endpoints={endpoints} setEndpoints={setEndpoints} onBack={handleBack} onGenerate={handleGenerateBackend} />;
+                case 4:
+                    return <GenerationStep {...finalStepProps} />;
+                default:
+                    return <div>Unknown Step</div>;
+            }
         }
+        if (appType === 'frontend') {
+            switch (step) {
+                case 1:
+                    return <ProjectSetupStep details={frontendProjectDetails} setDetails={setFrontendProjectDetails} onNext={handleNext} frameworks={FRONTEND_FRAMEWORKS} nextButtonText="Next: Describe UI" />;
+                case 2:
+                    return <UIDescriptionStep description={uiDescription} setDescription={setUiDescription} onBack={handleBack} onGenerate={handleGenerateFrontend} />;
+                case 3:
+                    return <GenerationStep {...finalStepProps} />;
+                default:
+                    return <div>Unknown Step</div>;
+            }
+        }
+        return null;
     };
+    
+    if (!appType) {
+        return <AppTypeSelection onSelect={handleSelectAppType} />;
+    }
+    
+    const currentSteps = appType === 'backend' ? STEPS : FRONTEND_STEPS;
+    const title = appType === 'backend' ? 'Backend App Creator' : 'Frontend App Creator';
+    const subtitle = appType === 'backend' ? 'Visually build your API, and let Gemini do the coding.' : 'Describe your UI, and let Gemini do the coding.';
 
     return (
         <div className="min-h-screen bg-background font-sans">
             <header className="bg-surface p-4 shadow-md sticky top-0 z-10 border-b border-border">
-                <div className="container mx-auto max-w-7xl">
-                    <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
-                        Backend App Creator
-                    </h1>
-                    <p className="text-text-secondary">Visually build your API, and let Gemini do the coding.</p>
+                <div className="container mx-auto max-w-7xl flex justify-between items-center">
+                    <div>
+                         <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+                            {title}
+                        </h1>
+                        <p className="text-text-secondary">{subtitle}</p>
+                    </div>
+                    <button onClick={handleRestart} className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors">
+                        Change App Type
+                    </button>
                 </div>
             </header>
             <main className="container mx-auto p-4 md:p-8 max-w-7xl">
-                <StepIndicator currentStep={step} totalSteps={STEPS.length} />
+                <StepIndicator currentStep={step} steps={currentSteps} />
                 <div className="mt-8 bg-surface p-6 rounded-lg shadow-xl border border-border">
                     {renderStep()}
                 </div>
