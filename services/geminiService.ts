@@ -86,12 +86,20 @@ ${formatModelsForPrompt(models)}
 **API Endpoints:**
 ${formatEndpointsForPrompt(endpoints)}
 
+**Framework-Specific Instructions:**
+- If the framework is 'nodejs-supabase':
+  - Use 'supabase-js' for database interaction and 'express' for the server.
+  - Initialize the Supabase client using environment variables: \`SUPABASE_URL\` and \`SUPABASE_ANON_KEY\`.
+  - Do NOT generate SQL table creation files. The user is expected to create tables in the Supabase UI that match the data models.
+  - Implement the endpoint logic using the Supabase client (e.g., \`supabase.from('users').select()\`).
+  - The README.md file should clearly state that the user needs to set up a Supabase project, create the tables, and provide the environment variables.
+
 **Instructions:**
 
 1.  **Generate a complete file structure.** Create all necessary files, including package definitions (\`package.json\`, \`go.mod\`, \`requirements.txt\`), application entry points (\`index.js\`, \`main.go\`, \`app.py\`), model/schema definitions, route handlers, and controller logic.
-2.  **Implement the models.** For each data model specified, create the corresponding schema or model file with the correct field types and validation (e.g., required fields).
+2.  **Implement the models.** For each data model specified, create the corresponding schema or model file with the correct field types and validation (e.g., required fields). For Supabase, this means your route logic should correctly handle objects matching the model structure.
 3.  **Implement the API endpoints.** For each endpoint, create the route and the business logic in a controller/handler function. Ensure the logic corresponds to the description (e.g., creating, reading, updating, deleting data).
-4.  **Adhere to best practices.** Use environment variables for configuration (like database connection strings and server port), implement proper error handling, and structure the code logically (e.g., separating concerns into models, views/routes, and controllers).
+4.  **Adhere to best practices.** Use environment variables for configuration (like database connection strings, Supabase keys, and server port), implement proper error handling, and structure the code logically (e.g., separating concerns into models, views/routes, and controllers).
 5.  **Provide a README.md.** Include instructions on how to set up, install dependencies, and run the project.
 6.  **Return the output as a single JSON array.** Each object in the array should represent a file and conform to the schema: \`{ "filePath": string, "code": string }\`.
 
@@ -163,6 +171,14 @@ Based on the frontend code provided below, you must:
 
 - **Project Name:** ${backendDetails.name}
 - **Framework:** ${backendDetails.framework}
+
+**Framework-Specific Instructions:**
+- If the framework is 'nodejs-supabase':
+  - Use 'supabase-js' for database interaction and 'express' for the server.
+  - Initialize the Supabase client using environment variables: \`SUPABASE_URL\` and \`SUPABASE_ANON_KEY\`.
+  - Do NOT generate SQL table creation files. The user is expected to create tables in the Supabase UI that match the inferred data models.
+  - Implement the endpoint logic using the Supabase client (e.g., \`supabase.from('todos').select()\`).
+  - The README.md file should clearly state that the user needs to set up a Supabase project, create the tables, and provide the environment variables.
 
 **Frontend Application Code to Analyze:**
 ---
