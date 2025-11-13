@@ -210,6 +210,8 @@ const App: React.FC = () => {
                         onNext={handleGenerateBackendForUpload} 
                         frameworks={FRAMEWORKS} 
                         nextButtonText="Generate Backend"
+                        title="Configure Backend"
+                        description="Your frontend project has been analyzed. Now, configure the details for the backend you want to generate."
                     />;
                 case 3:
                     return <GenerationStep {...finalStepProps} />;

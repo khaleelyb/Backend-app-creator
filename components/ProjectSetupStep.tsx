@@ -12,17 +12,19 @@ interface ProjectSetupStepProps {
     onNext: () => void;
     frameworks: Framework[];
     nextButtonText: string;
+    title?: string;
+    description?: string;
 }
 
-const ProjectSetupStep: React.FC<ProjectSetupStepProps> = ({ details, setDetails, onNext, frameworks, nextButtonText }) => {
+const ProjectSetupStep: React.FC<ProjectSetupStepProps> = ({ details, setDetails, onNext, frameworks, nextButtonText, title, description }) => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         setDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
     return (
         <div>
-            <h2 className="text-2xl font-semibold text-text-primary mb-4">Project Setup</h2>
-            <p className="text-text-secondary mb-6">Let's start with the basics. Give your new project a name and choose your tech stack.</p>
+            <h2 className="text-2xl font-semibold text-text-primary mb-4">{title || 'Project Setup'}</h2>
+            <p className="text-text-secondary mb-6">{description || "Let's start with the basics. Give your new project a name and choose your tech stack."}</p>
             <div className="space-y-6">
                 <div>
                     <label htmlFor="name" className="block text-sm font-medium text-text-secondary">Project Name</label>
